@@ -14,7 +14,8 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
         window.title = "MediaKeys for Spotify Setup"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.center()
-        window.setContentSize(NSSize(width: 560, height: 440))
+        window.setContentSize(NSSize(width: Int(OnboardingTheme.windowWidth), height: Int(OnboardingTheme.windowHeight)))
+        window.backgroundColor = .white
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
