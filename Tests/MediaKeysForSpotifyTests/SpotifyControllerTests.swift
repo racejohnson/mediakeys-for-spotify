@@ -1,5 +1,5 @@
 import XCTest
-@testable import MediaKeysForSpotifyV2
+@testable import MediaKeysForSpotify
 
 final class SpotifyControllerTests: XCTestCase {
     func testHandleDispatchesWhenSpotifyAlreadyRunning() {

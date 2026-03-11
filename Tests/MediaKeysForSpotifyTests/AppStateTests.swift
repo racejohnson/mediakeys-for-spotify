@@ -1,5 +1,5 @@
 import XCTest
-@testable import MediaKeysForSpotifyV2
+@testable import MediaKeysForSpotify
 
 @MainActor
 final class AppStateTests: XCTestCase {

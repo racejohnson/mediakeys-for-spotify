@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="MediaKeys for Spotify V2"
-EXECUTABLE_NAME="MediaKeysForSpotifyV2"
-BUNDLE_ID="com.racejohnson.mediakeys-for-spotify-v2"
+APP_NAME="MediaKeys for Spotify"
+EXECUTABLE_NAME="MediaKeysForSpotify"
+BUNDLE_ID="com.racejohnson.mediakeys-for-spotify"
 
 APP_DIR="$ROOT_DIR/build/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -62,11 +62,11 @@ cat > "$CONTENTS_DIR/Info.plist" <<EOF
   <key>LSUIElement</key>
   <true/>
   <key>NSAppleEventsUsageDescription</key>
-  <string>MediaKeys for Spotify V2 needs Apple Events access to control Spotify playback.</string>
+  <string>MediaKeys for Spotify needs Apple Events access to control Spotify playback.</string>
   <key>NSAccessibilityUsageDescription</key>
-  <string>MediaKeys for Spotify V2 requires Accessibility permission to intercept media keys globally.</string>
+  <string>MediaKeys for Spotify requires Accessibility permission to intercept media keys globally.</string>
   <key>NSInputMonitoringUsageDescription</key>
-  <string>MediaKeys for Spotify V2 requires Input Monitoring to listen for media key presses.</string>
+  <string>MediaKeys for Spotify requires Input Monitoring to listen for media key presses.</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
 </dict>

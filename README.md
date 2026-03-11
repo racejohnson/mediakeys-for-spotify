@@ -1,6 +1,6 @@
-# MediaKeys for Spotify V2
+# MediaKeys for Spotify
 
-`MediaKeys for Spotify V2` is a native macOS menu bar app that globally intercepts media keys and routes them exclusively to Spotify, regardless of the frontmost app.
+`MediaKeys for Spotify` is a native macOS menu bar app that globally intercepts media keys and routes them exclusively to Spotify, regardless of the frontmost app.
 
 ## Features
 
@@ -36,7 +36,7 @@
 
 Output app bundle:
 
-- `build/MediaKeys for Spotify V2.app`
+- `build/MediaKeys for Spotify.app`
 
 ## Build DMG
 
@@ -46,7 +46,7 @@ Output app bundle:
 
 Output installer:
 
-- `build/MediaKeys-for-Spotify-V2.dmg`
+- `build/MediaKeys-for-Spotify.dmg`
 
 ## Permissions Behavior
 

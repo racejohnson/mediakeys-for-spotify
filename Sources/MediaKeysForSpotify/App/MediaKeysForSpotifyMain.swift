@@ -2,7 +2,7 @@ import AppKit
 
 @main
 @MainActor
-struct MediaKeysForSpotifyV2Main {
+struct MediaKeysForSpotifyMain {
     static func main() {
         let application = NSApplication.shared
         let delegate = AppDelegate()

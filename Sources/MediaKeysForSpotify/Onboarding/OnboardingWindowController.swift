@@ -11,7 +11,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
         )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "MediaKeys for Spotify V2 Setup"
+        window.title = "MediaKeys for Spotify Setup"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.center()
         window.setContentSize(NSSize(width: 560, height: 440))

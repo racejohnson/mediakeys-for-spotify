@@ -10,7 +10,7 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 20) {
             HStack {
-                Text("MediaKeys for Spotify V2")
+                Text("MediaKeys for Spotify")
                     .font(.title2.bold())
                 Spacer()
                 Text("Step \(step + 1) of 3")

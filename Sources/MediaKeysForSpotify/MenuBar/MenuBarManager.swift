@@ -16,7 +16,7 @@ final class MenuBarManager: NSObject {
     private let toggleMenuItem = NSMenuItem(title: "Disable Interception", action: nil, keyEquivalent: "")
     private let onboardingMenuItem = NSMenuItem(title: "Re-open Onboarding", action: nil, keyEquivalent: "")
     private let launchAtLoginMenuItem = NSMenuItem(title: "Launch at Login", action: nil, keyEquivalent: "")
-    private let quitMenuItem = NSMenuItem(title: "Quit MediaKeys for Spotify V2", action: nil, keyEquivalent: "q")
+    private let quitMenuItem = NSMenuItem(title: "Quit MediaKeys for Spotify", action: nil, keyEquivalent: "q")
 
     private var isEnabled = true
     private var launchAtLogin = true

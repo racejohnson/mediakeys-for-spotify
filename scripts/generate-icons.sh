@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SVG_DIR="$ROOT_DIR/assets/svg"
 GENERATED_DIR="$ROOT_DIR/assets/generated"
-RESOURCE_DIR="$ROOT_DIR/Sources/MediaKeysForSpotifyV2/Resources"
+RESOURCE_DIR="$ROOT_DIR/Sources/MediaKeysForSpotify/Resources"
 ICONSET_DIR="$GENERATED_DIR/AppIcon.iconset"
 
 ENABLED_SVG="$SVG_DIR/enabled.svg"
