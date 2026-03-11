@@ -20,7 +20,7 @@ Sources/MediaKeysForSpotify/
 ├── App/          # Entry point (@main), NSAppDelegate, AppState (Observable)
 ├── Core/         # Media key interception, Spotify control, permissions, login item
 ├── MenuBar/      # NSStatusItem, context menu, SVG→CGPath icon rendering
-├── Onboarding/   # SwiftUI 3-step setup wizard (NSHostingController)
+├── Onboarding/   # SwiftUI 3-step setup wizard (NSHostingController), OnboardingTheme design tokens
 └── Resources/    # Bundle assets (AppIcon.icns, menu bar PNGs)
 ```
 
@@ -32,6 +32,7 @@ Sources/MediaKeysForSpotify/
 - **Error handling**: No throws — uses optional returns and Bool success values. Errors go to stderr.
 - **Testing**: Closure-based dependency injection, isolated UserDefaults suites per test, mock managers for protocols.
 - **Icons**: SVG source in `assets/svg/`, rasterized to `assets/generated/` and copied into `Sources/.../Resources/`.
+- **Onboarding theme**: Design tokens in `OnboardingTheme` enum (colors, typography, spacing) matching the marketing website's design language. Light-only, black/white + Spotify green (#1DB954). Uses native macOS controls with custom typography hierarchy.
 
 ## Build Details
 
