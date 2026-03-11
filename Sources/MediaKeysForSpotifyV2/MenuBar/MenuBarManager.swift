@@ -41,7 +41,7 @@ final class MenuBarManager: NSObject {
             return
         }
         button.image = isEnabled ? enabledImage : disabledImage
-        button.image?.isTemplate = false
+        button.image?.isTemplate = !isEnabled
         button.toolTip = isEnabled ? "Media keys routed to Spotify" : "Media keys passthrough mode"
     }
 
@@ -78,8 +78,12 @@ final class MenuBarManager: NSObject {
     }
 
     private func loadImages() {
-        enabledImage = loadMenuImage(named: "menu-enabled") ?? fallbackImage(systemName: "music.note")
-        disabledImage = loadMenuImage(named: "menu-disabled") ?? fallbackImage(systemName: "music.note")
+        enabledImage = MenuIconRenderer.makeEnabledIcon()
+            ?? loadMenuImage(named: "menu-enabled")
+            ?? fallbackImage(systemName: "music.note")
+        disabledImage = MenuIconRenderer.makeDisabledIcon()
+            ?? loadMenuImage(named: "menu-disabled")
+            ?? fallbackImage(systemName: "music.note")
     }
 
     private func loadMenuImage(named baseName: String) -> NSImage? {
