@@ -18,6 +18,10 @@ On a Mac, the play key goes to whichever app last played sound. Press it and you
 
 MediaKeys for Spotify fixes that. It sits in your menu bar and sends play/pause, next and previous straight to Spotify, whatever app you're in.
 
+<p align="center">
+  <img src="docs/menu.png" width="416" alt="The MediaKeys for Spotify menu, open from its note icon in the menu bar">
+</p>
+
 - **Set it and forget it.** Allow two permissions once and it just works, every time you log in.
 - **Starts Spotify for you.** If Spotify isn't open, pressing play opens it in the background and starts the music.
 - **Easy to switch off.** Turn it off from the menu bar and your keys work the way they normally do.
@@ -40,9 +44,9 @@ This builds the app, puts it in your **Applications** folder and opens it. To up
 
 When you first open the app, a setup window asks for two permissions.
 
-<p align="center">
-  <img src="docs/setup.png" width="440" alt="The setup window, with rows for Accessibility and Spotify, an Open at login switch, and a Done button">
-</p>
+| First launch | All set |
+| :---: | :---: |
+| <img src="docs/setup.png" width="340" alt="The setup window on first launch, with an Allow button next to Accessibility"> | <img src="docs/setup-done.png" width="340" alt="The setup window once both permissions show Allowed"> |
 
 - **Accessibility** lets MediaKeys catch the media keys before other apps do. Click **Allow…** and switch on MediaKeys for Spotify in the list that opens.
 - **Spotify** lets MediaKeys tell Spotify to play, pause and skip. Click **Allow…**, then **Allow** again when macOS asks.
@@ -58,7 +62,7 @@ MediaKeys has no Dock icon; it lives in your menu bar as ♫. Click it for:
 - **Setup…**: reopens the setup window. It reads **Finish Setup…** when a permission is missing.
 - **About** and **Quit**.
 
-The icon dims while MediaKeys is off and shows a small dot when setup isn't finished.
+The icon looks like <img src="docs/icon-on.png" height="20" alt="the bright note icon"> while MediaKeys is on, dims to <img src="docs/icon-off.png" height="20" alt="the dimmed note icon"> while it's off, and shows a small dot when setup isn't finished.
 
 ## Questions
 
