@@ -1,29 +1,20 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
     name: "MediaKeysForSpotify",
-    platforms: [
-        .macOS(.v13)
-    ],
-    products: [
-        .executable(
-            name: "MediaKeysForSpotify",
-            targets: ["MediaKeysForSpotify"]
-        )
-    ],
+    platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
             name: "MediaKeysForSpotify",
             path: "Sources/MediaKeysForSpotify",
-            resources: [
-                .process("Resources")
-            ]
+            swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         .testTarget(
             name: "MediaKeysForSpotifyTests",
             dependencies: ["MediaKeysForSpotify"],
-            path: "Tests/MediaKeysForSpotifyTests"
-        )
+            path: "Tests/MediaKeysForSpotifyTests",
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
     ]
 )

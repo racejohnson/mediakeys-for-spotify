@@ -1,80 +1,73 @@
 #!/usr/bin/env bash
+# Builds "build/MediaKeys for Spotify.app".
+#   scripts/build-app.sh           universal (arm64 + x86_64) release build
+#   scripts/build-app.sh --debug   native-arch debug build
+# Signs with the first Developer ID Application or Apple Development identity in the keychain,
+# else ad-hoc. Set SIGN_IDENTITY to choose one ("-" forces ad-hoc).
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="MediaKeys for Spotify"
-EXECUTABLE_NAME="MediaKeysForSpotify"
-BUNDLE_ID="com.racejohnson.mediakeys-for-spotify"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PACKAGING="$ROOT/Packaging"
+EXECUTABLE="MediaKeysForSpotify"
+APP="$ROOT/build/MediaKeys for Spotify.app"
 
-APP_DIR="$ROOT_DIR/build/$APP_NAME.app"
-CONTENTS_DIR="$APP_DIR/Contents"
-MACOS_DIR="$CONTENTS_DIR/MacOS"
-RESOURCES_DIR="$CONTENTS_DIR/Resources"
+# A real identity gives a designated requirement that survives rebuilds, so macOS keeps the
+# Accessibility grant. Ad-hoc builds are identified by hash and lose it on every rebuild.
+if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+  IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  SIGN_IDENTITY="$( { grep -o '"Developer ID Application: [^"]*"' <<<"$IDENTITIES" \
+    || grep -o '"Apple Development: [^"]*"' <<<"$IDENTITIES" || true; } | head -1 | tr -d '"')"
+  SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+fi
 
-echo "Generating icons..."
-"$ROOT_DIR/scripts/generate-icons.sh"
+case "${1:-}" in
+  "")      BUILD_ARGS=(-c release --arch arm64 --arch x86_64) ;;
+  --debug) BUILD_ARGS=(-c debug) ;;
+  *)       echo "usage: $(basename "$0") [--debug]" >&2; exit 64 ;;
+esac
 
-echo "Building release binary with SwiftPM..."
-swift build -c release --arch arm64 --package-path "$ROOT_DIR"
-
-BINARY_PATH="$(find "$ROOT_DIR/.build" -type f -path "*/release/$EXECUTABLE_NAME" | head -n 1)"
-if [[ -z "$BINARY_PATH" || ! -f "$BINARY_PATH" ]]; then
-  echo "Unable to locate release binary for $EXECUTABLE_NAME" >&2
+if [[ ! -d "$PACKAGING/AppIcon.icon" ]]; then
+  echo "error: missing $PACKAGING/AppIcon.icon (the Icon Composer app icon)" >&2
   exit 1
 fi
 
-echo "Assembling app bundle..."
-rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR/icons"
+# SwiftPM records the deployment target as the binary's SDK version, which makes macOS
+# run the app in compatibility mode (old-style controls). Record the real SDK instead.
+MIN_MACOS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PACKAGING/Info.plist")"
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+BUILD_ARGS+=(-Xlinker -platform_version -Xlinker macos -Xlinker "$MIN_MACOS" -Xlinker "$SDK_VERSION")
 
-cp "$BINARY_PATH" "$MACOS_DIR/$EXECUTABLE_NAME"
-cp "$ROOT_DIR/assets/generated/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
-cp "$ROOT_DIR/assets/generated/menu-enabled.png" "$RESOURCES_DIR/icons/menu-enabled.png"
-cp "$ROOT_DIR/assets/generated/menu-disabled.png" "$RESOURCES_DIR/icons/menu-disabled.png"
+echo "==> Compiling ($([[ ${1:-} == --debug ]] && echo debug || echo 'release, universal'))"
+swift build --package-path "$ROOT" "${BUILD_ARGS[@]}"
+BIN_DIR="$(swift build --package-path "$ROOT" "${BUILD_ARGS[@]}" --show-bin-path)"
+BINARY="$BIN_DIR/$EXECUTABLE"
+[[ -x "$BINARY" ]] || { echo "error: no executable at $BINARY" >&2; exit 1; }
 
-cat > "$CONTENTS_DIR/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleDevelopmentRegion</key>
-  <string>en</string>
-  <key>CFBundleDisplayName</key>
-  <string>$APP_NAME</string>
-  <key>CFBundleExecutable</key>
-  <string>$EXECUTABLE_NAME</string>
-  <key>CFBundleIconFile</key>
-  <string>AppIcon</string>
-  <key>CFBundleIdentifier</key>
-  <string>$BUNDLE_ID</string>
-  <key>CFBundleInfoDictionaryVersion</key>
-  <string>6.0</string>
-  <key>CFBundleName</key>
-  <string>$APP_NAME</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>1.0.0</string>
-  <key>CFBundleVersion</key>
-  <string>1</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>13.0</string>
-  <key>LSUIElement</key>
-  <true/>
-  <key>NSAppleEventsUsageDescription</key>
-  <string>MediaKeys for Spotify needs Apple Events access to control Spotify playback.</string>
-  <key>NSAccessibilityUsageDescription</key>
-  <string>MediaKeys for Spotify requires Accessibility permission to intercept media keys globally.</string>
-  <key>NSInputMonitoringUsageDescription</key>
-  <string>MediaKeys for Spotify requires Input Monitoring to listen for media key presses.</string>
-  <key>NSPrincipalClass</key>
-  <string>NSApplication</string>
-</dict>
-</plist>
-EOF
+echo "==> Assembling bundle"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$BINARY" "$APP/Contents/MacOS/$EXECUTABLE"
+cp "$PACKAGING/Info.plist" "$APP/Contents/Info.plist"
 
-echo "Applying ad-hoc signature..."
-codesign --force --deep --sign - "$APP_DIR"
+echo "==> Compiling app icon"
+xcrun actool "$PACKAGING/AppIcon.icon" \
+  --compile "$APP/Contents/Resources" \
+  --app-icon AppIcon \
+  --enable-on-demand-resources NO \
+  --development-region en \
+  --target-device mac \
+  --platform macosx \
+  --minimum-deployment-target "$MIN_MACOS" \
+  --output-partial-info-plist "$TMP/partial.plist" >/dev/null
 
-echo "Built app bundle:"
-echo "  $APP_DIR"
+echo "==> Signing (identity: $SIGN_IDENTITY)"
+SIGN_ARGS=(--force --options runtime --entitlements "$PACKAGING/MediaKeysForSpotify.entitlements" --sign "$SIGN_IDENTITY")
+# Notarization needs a secure timestamp; only Developer ID builds get notarized.
+if [[ "$SIGN_IDENTITY" == "Developer ID Application:"* ]]; then SIGN_ARGS+=(--timestamp); fi
+codesign "${SIGN_ARGS[@]}" "$APP"
+codesign --verify --strict "$APP"
+
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+echo "==> Built $APP (version $VERSION)"

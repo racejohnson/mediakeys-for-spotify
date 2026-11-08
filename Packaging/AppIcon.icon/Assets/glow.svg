@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<radialGradient id="teal" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(130 80) rotate(-34) scale(760 340)">
+ <stop offset="0" stop-color="#1fc7ae" stop-opacity="0.28"/><stop offset="0.35" stop-color="#11a08f" stop-opacity="0.12"/><stop offset="0.7" stop-color="#087063" stop-opacity="0.03"/><stop offset="1" stop-color="#087063" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="green" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(580 1090) rotate(-8) scale(940 360)">
+ <stop offset="0" stop-color="#1ED760" stop-opacity="0.32"/><stop offset="0.35" stop-color="#1DB954" stop-opacity="0.17"/><stop offset="0.7" stop-color="#11793a" stop-opacity="0.03"/><stop offset="1" stop-color="#11793a" stop-opacity="0"/>
+</radialGradient>
+</defs>
+<rect width="1024" height="1024" fill="url(#teal)"/>
+<rect width="1024" height="1024" fill="url(#green)"/>
+</svg>

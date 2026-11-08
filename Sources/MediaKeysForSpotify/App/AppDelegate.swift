@@ -1,122 +1,63 @@
 import AppKit
-import Combine
-import Foundation
+import os
 
-@MainActor
+extension Logger {
+    nonisolated static let app = Logger(subsystem: "com.racejohnson.mediakeys-for-spotify", category: "app")
+}
+
+@main
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let permissionManager: PermissionManaging
-    private let loginItemManager: LoginItemManaging
-    private let spotifyController: SpotifyControlling
+    private var model: AppModel!
+    private var statusItem: StatusItemController!
+    private var setupWindow: SetupWindowController!
 
-    private var appState: AppState!
-    private var interceptor: MediaKeyInterceptor!
-    private var menuBarManager: MenuBarManager!
-    private var onboardingWindowController: OnboardingWindowController?
-    private var cancellables = Set<AnyCancellable>()
-
-    init(
-        permissionManager: PermissionManaging = PermissionsManager(),
-        loginItemManager: LoginItemManaging = LoginItemManager(),
-        spotifyController: SpotifyControlling = SpotifyController()
-    ) {
-        self.permissionManager = permissionManager
-        self.loginItemManager = loginItemManager
-        self.spotifyController = spotifyController
-        super.init()
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        withExtendedLifetime(delegate) { app.run() }
     }
 
-    func applicationDidFinishLaunching(_: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let spotify = SpotifyRemote()
+        let tap = MediaKeyTap { spotify.handle($0) }
+        model = AppModel(tap: tap, spotify: spotify)
+        spotify.onDenied = { [model] in model?.automationWasDenied() }
+        setupWindow = SetupWindowController(model: model)
+        statusItem = StatusItemController(model: model) { [setupWindow] in setupWindow?.show() }
+        observeSystemChanges()
 
-        appState = AppState(
-            permissionManager: permissionManager,
-            loginItemManager: loginItemManager
-        )
+        Task {
+            await model.refresh()
+            if model.needsPermission { setupWindow.show() }
+        }
+    }
 
-        interceptor = MediaKeyInterceptor(
-            isEnabledProvider: { [weak self] in
-                self?.appState.isEnabled == true
-            },
-            onCommand: { [weak self] command in
-                _ = self?.spotifyController.handle(command)
+    /// Catches changes made while nothing is polling: Accessibility switched off in System Settings,
+    /// and Spotify starting (the only time macOS can report its Automation answer).
+    private func observeSystemChanges() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.accessibility.api"), object: nil, queue: .main
+        ) { [model] _ in
+            // AXIsProcessTrusted lags the notification slightly.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                await model?.refresh()
             }
-        )
-
-        menuBarManager = MenuBarManager()
-        menuBarManager.onToggleRequested = { [weak self] in
-            self?.appState.toggleEnabled()
         }
-        menuBarManager.onOpenOnboardingRequested = { [weak self] in
-            self?.showOnboarding()
-        }
-        menuBarManager.onLaunchAtLoginChanged = { [weak self] enabled in
-            self?.appState.launchAtLogin = enabled
-        }
-        menuBarManager.onQuitRequested = {
-            NSApp.terminate(nil)
-        }
-
-        bindState()
-        appState.refreshPermissions()
-        appState.startPermissionPolling()
-        updateInterceptorState()
-
-        if appState.shouldShowOnboarding {
-            showOnboarding()
-            appState.requestMissingPermissionPrompts()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main
+        ) { [model] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard app?.bundleIdentifier == SpotifyRemote.bundleID else { return }
+            Task { @MainActor in await model?.refresh() }
         }
     }
 
-    func applicationWillTerminate(_: Notification) {
-        interceptor.stop()
-        appState.stopPermissionPolling()
-    }
-
-    private func bindState() {
-        Publishers.CombineLatest(appState.$isEnabled, appState.$launchAtLogin)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] isEnabled, launchAtLogin in
-                self?.menuBarManager.update(isEnabled: isEnabled, launchAtLogin: launchAtLogin)
-                self?.updateInterceptorState()
-            }
-            .store(in: &cancellables)
-
-        appState.$permissions
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateInterceptorState()
-            }
-            .store(in: &cancellables)
-    }
-
-    private func updateInterceptorState() {
-        guard appState.isEnabled else {
-            interceptor.stop()
-            return
-        }
-        guard appState.permissions.inputMonitoring, appState.permissions.accessibility else {
-            interceptor.stop()
-            return
-        }
-        _ = interceptor.start()
-    }
-
-    private func showOnboarding() {
-        if onboardingWindowController == nil {
-            onboardingWindowController = OnboardingWindowController(
-                appState: appState,
-                permissionManager: permissionManager
-            )
-        }
-
-        onboardingWindowController?.update(
-            appState: appState,
-            permissionManager: permissionManager,
-            onFinish: { [weak self] in
-                self?.appState.refreshPermissions()
-                self?.onboardingWindowController?.close()
-            }
-        )
-        onboardingWindowController?.show()
+    /// Opening the app again (Finder, Spotlight) brings back the setup window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        setupWindow.show()
+        return false
     }
 }
