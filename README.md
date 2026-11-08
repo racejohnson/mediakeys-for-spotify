@@ -57,6 +57,7 @@ If Spotify isn't running when you press a key, MediaKeys opens it in the backgro
 You need macOS 14 or later, Xcode 26 or later (its `actool` compiles the Icon Composer app icon, and Swift 6.2 or later builds the code), and nothing else. There is no Xcode project; it's a Swift package.
 
 ```bash
+./scripts/install.sh      # release build, installed in /Applications and opened
 ./scripts/run-dev.sh      # debug build of the app, then launch it
 ./scripts/build-app.sh    # build/MediaKeys for Spotify.app (universal release)
 ./scripts/build-dmg.sh    # build/MediaKeys-for-Spotify-<version>.dmg

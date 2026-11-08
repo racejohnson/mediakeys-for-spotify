@@ -6,6 +6,7 @@ MediaKeys for Spotify is a native macOS menu bar app (Swift 6.2+ language mode, 
 
 ## Commands
 
+- **Install**: `./scripts/install.sh`: release build, quits the running copy, moves the app into `/Applications` (replacing the old one) and opens it. Moved, not copied, so Spotlight sees one app; the login item follows the bundle.
 - **Dev run**: `./scripts/run-dev.sh`: debug bundle via `build-app.sh --debug`, quits any running copy, then `open`s it. Don't use `swift run`: TCC grants attach to the bundle ID.
 - **Build app**: `./scripts/build-app.sh` → `build/MediaKeys for Spotify.app` (universal release). `--debug` builds native-arch debug.
 - **Build DMG**: `./scripts/build-dmg.sh` → `build/MediaKeys-for-Spotify-<version>.dmg` (runs `build-app.sh` first; version from `Packaging/Info.plist`).
@@ -38,7 +39,7 @@ Packaging/
 ├── Info.plist                       # Bundle metadata, version, LSUIElement, NSAppleEventsUsageDescription
 ├── MediaKeysForSpotify.entitlements # com.apple.security.automation.apple-events
 └── AppIcon.icon/                    # Icon Composer document (icon.json + Assets/note.svg, glow.svg)
-scripts/                             # build-app.sh, build-dmg.sh, run-dev.sh
+scripts/                             # build-app.sh, build-dmg.sh, install.sh, run-dev.sh
 docs/icon.png                        # Exported icon for the README
 ```
 
