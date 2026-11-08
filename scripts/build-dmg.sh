@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Builds the release app and packages it as build/MediaKeys-for-Spotify-<version>.dmg.
+# Builds the release app and packages it as build/MediaKeys-for-Spotify.dmg.
+# The name has no version so the README's releases/latest/download link stays stable.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="MediaKeys for Spotify"
 APP="$ROOT/build/$APP_NAME.app"
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT/Packaging/Info.plist")"
-DMG="$ROOT/build/MediaKeys-for-Spotify-$VERSION.dmg"
+DMG="$ROOT/build/MediaKeys-for-Spotify.dmg"
 STAGING="$ROOT/build/dmg-staging"
 
 "$ROOT/scripts/build-app.sh"
