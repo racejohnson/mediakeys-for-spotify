@@ -9,8 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/racejohnson/mediakeys-for-spotify/releases/latest/download/MediaKeys-for-Spotify.dmg"><b>Download for Mac</b></a>
-  &nbsp;·&nbsp; macOS 14 or later &nbsp;·&nbsp; Free and open source
+  macOS 14 or later &nbsp;·&nbsp; Free and open source
 </p>
 
 ---
@@ -27,11 +26,15 @@ MediaKeys for Spotify fixes that. It sits in your menu bar and sends play/pause,
 
 ## Install
 
-1. [Download MediaKeys-for-Spotify.dmg](https://github.com/racejohnson/mediakeys-for-spotify/releases/latest/download/MediaKeys-for-Spotify.dmg).
-2. Open it and drag **MediaKeys for Spotify** into your **Applications** folder.
-3. Open the app from Applications.
+You need macOS 14 or later and [Xcode](https://apps.apple.com/app/xcode/id497799835) 26 or later (free from the App Store). In Terminal, run:
 
-The app isn't notarized by Apple, so the first time you open it macOS may say it can't verify it. Close that message, go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**. You only do this once.
+```bash
+git clone https://github.com/racejohnson/mediakeys-for-spotify.git
+cd mediakeys-for-spotify
+./scripts/install.sh
+```
+
+This builds the app, puts it in your **Applications** folder and opens it. To update later, run `git pull` and `./scripts/install.sh` again.
 
 ## Set up
 
@@ -74,12 +77,11 @@ On purpose: each press counts once, so a held key can't race through your queue.
 **How do I uninstall it?**
 Click the menu bar icon, choose **Quit**, and drag the app from Applications to the Trash. You can also remove it from **Accessibility** and **Automation** in **System Settings → Privacy & Security**.
 
-## Build from source
+## For developers
 
-You need macOS 14 or later and Xcode 26 or later. It's a Swift package; there's no Xcode project.
+It's a Swift package; there's no Xcode project.
 
 ```bash
-./scripts/install.sh      # build, install to /Applications and open
 ./scripts/run-dev.sh      # build a debug copy and open it
 ./scripts/build-dmg.sh    # build/MediaKeys-for-Spotify.dmg
 swift test                # run the tests

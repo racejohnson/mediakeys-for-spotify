@@ -9,7 +9,7 @@ MediaKeys for Spotify is a native macOS menu bar app (Swift 6.2+ language mode, 
 - **Install**: `./scripts/install.sh`: release build, quits the running copy, moves the app into `/Applications` (replacing the old one) and opens it. Moved, not copied, so Spotlight sees one app; the login item follows the bundle.
 - **Dev run**: `./scripts/run-dev.sh`: debug bundle via `build-app.sh --debug`, quits any running copy, then `open`s it. Don't use `swift run`: TCC grants attach to the bundle ID.
 - **Build app**: `./scripts/build-app.sh` → `build/MediaKeys for Spotify.app` (universal release). `--debug` builds native-arch debug.
-- **Build DMG**: `./scripts/build-dmg.sh` → `build/MediaKeys-for-Spotify.dmg` (runs `build-app.sh` first). No version in the name: the README links to `releases/latest/download/MediaKeys-for-Spotify.dmg`, so every release must attach the DMG under exactly that name.
+- **Build DMG**: `./scripts/build-dmg.sh` → `build/MediaKeys-for-Spotify.dmg` (runs `build-app.sh` first).
 - **Run all tests**: `swift test`
 - **Run one suite**: `swift test --filter AppModelTests`
 - **Preview the icon**: `"/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool" Packaging/AppIcon.icon --export-image --output-file out.png --platform macOS --rendition Default --width 1024 --height 1024 --scale 1` (`ictool --help` lists other renditions, e.g. `TintedDark` with `--tint-color`). `docs/icon.png` is the Default export, used by the README.

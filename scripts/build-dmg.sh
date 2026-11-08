@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Builds the release app and packages it as build/MediaKeys-for-Spotify.dmg.
-# The name has no version so the README's releases/latest/download link stays stable.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
