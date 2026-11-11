@@ -1,4 +1,4 @@
-# CLAUDE.md
+# MediaKeys for Spotify
 
 ## Project Overview
 
