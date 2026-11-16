@@ -12,15 +12,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func main() {
         let app = NSApplication.shared
-        // `--readme <folder>` redraws the README's pictures and quits, without touching the real system.
-        if let flag = CommandLine.arguments.firstIndex(of: "--readme") {
-            // Never fall through to a real launch: that would start the tap and add the login item.
-            guard CommandLine.arguments.indices.contains(flag + 1) else {
-                Logger.app.error("--readme needs a folder")
-                exit(64)
-            }
+        // Two developer modes that draw and quit, without touching the real system.
+        // `--icon-note <file>` writes the app icon's note layer from the menu bar glyph's path.
+        if let file = path(after: "--icon-note") {
+            exit(IconNote.write(to: file) ? EXIT_SUCCESS : EXIT_FAILURE)
+        }
+        // `--readme <folder>` redraws the README's pictures.
+        if let folder = path(after: "--readme") {
             app.setActivationPolicy(.prohibited)
-            ReadmePictures.write(to: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
+            ReadmePictures.write(to: folder)
             app.run()
             return
         }
@@ -28,6 +28,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.delegate = delegate
         app.setActivationPolicy(.accessory)
         withExtendedLifetime(delegate) { app.run() }
+    }
+
+    /// The path given after a developer flag, or nil when the flag is absent. A flag with no
+    /// path exits: it must never fall through to a real launch, which would start the tap
+    /// and add the login item.
+    private static func path(after flag: String) -> URL? {
+        guard let index = CommandLine.arguments.firstIndex(of: flag) else { return nil }
+        guard CommandLine.arguments.indices.contains(index + 1) else {
+            Logger.app.error("\(flag, privacy: .public) needs a path")
+            exit(64)
+        }
+        return URL(fileURLWithPath: CommandLine.arguments[index + 1])
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

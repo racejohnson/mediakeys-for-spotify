@@ -13,7 +13,8 @@ MediaKeys for Spotify is a native macOS menu bar app (Swift 6.2+ language mode, 
 - **Redraw the README's pictures**: `./scripts/readme-pictures.sh` → `docs/panel.png` and `docs/icon-on.png`, `icon-setup.png`, `icon-off.png`. A debug build draws them off screen (`--readme <folder>`) from stand-ins, so nothing real is read or changed; it exits non-zero and leaves the old pictures if anything fails. Run it after changing the panel or the menu bar glyph.
 - **Run all tests**: `swift test`
 - **Run one suite**: `swift test --filter AppModelTests`
-- **Preview the icon**: `"/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool" Packaging/AppIcon.icon --export-image --output-file out.png --platform macOS --rendition Default --width 1024 --height 1024 --scale 1` (`ictool --help` lists other renditions, e.g. `TintedDark` with `--tint-color`). `docs/icon.png` is the Default export, used by the README.
+- **Rebuild the icon's note**: `./scripts/icon.sh` writes `Packaging/AppIcon.icon/Assets/note.svg` from the menu bar glyph's path (a debug build run with `--icon-note <file>`) and re-exports `docs/icon.png`. Run it after changing the note in `MenuBarGlyph.swift` or anything in `Packaging/AppIcon.icon`, then run `readme-pictures.sh` too.
+- **Preview the icon**: `"/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool" Packaging/AppIcon.icon --export-image --output-file out.png --platform macOS --rendition Default --width 1024 --height 1024 --scale 1` (`ictool --help` lists the usage; other renditions are `Dark`, `TintedDark`, `TintedLight`, `ClearDark`, `ClearLight`). `docs/icon.png` is the Default export at 512, used by the README.
 
 ## Architecture
 
@@ -22,6 +23,7 @@ Sources/MediaKeysForSpotify/
 ├── App/
 │   ├── AppDelegate.swift            # @main entry; wires model, panel, status item; system-change observers; `--readme`; Logger.app
 │   ├── AppModel.swift               # @Observable state: enabled, permissions, Spotify installed and open, login item; starts/stops the tap; polls
+│   ├── IconNote.swift               # `--icon-note <file>`: writes the app icon's note layer (SVG) from the menu bar glyph's path
 │   └── ReadmePictures.swift         # `--readme <folder>`: draws the README's pictures off screen from stand-ins
 ├── Media/
 │   ├── MediaKey.swift               # MediaKey enum + MediaKeyEvent: decodes NX_SYSDEFINED subtype/data1 (pure, tested)
@@ -32,7 +34,7 @@ Sources/MediaKeysForSpotify/
 │   ├── Permissions.swift            # AccessibilityChecking (AXIsProcessTrusted + prompt); SettingsPane deep links
 │   └── LoginItem.swift              # LoginItemManaging over SMAppService.mainApp; LoginItemState
 └── UI/
-    ├── MenuBarGlyph.swift           # Template menu bar image; beamed-note glyph drawn as a CGPath in code
+    ├── MenuBarGlyph.swift           # Template menu bar image; the note, drawn once as a CGPath from named measurements
     ├── PanelController.swift        # The glass panel under the status item (from DayNight); closes on outside clicks, except during setup
     ├── PanelView.swift              # SwiftUI panel: setup rows, "Media keys go to" rows, open-at-login switch, footer
     ├── SpotifyLogo.swift            # Spotify's mark as a Shape, for the panel's Spotify rows only
@@ -41,8 +43,8 @@ Tests/MediaKeysForSpotifyTests/      # AppModelTests, MediaKeyEventTests, Spotif
 Packaging/
 ├── Info.plist                       # Bundle metadata, version, LSUIElement, NSAppleEventsUsageDescription
 ├── MediaKeysForSpotify.entitlements # com.apple.security.automation.apple-events
-└── AppIcon.icon/                    # Icon Composer document (icon.json + Assets/note.svg, glow.svg)
-scripts/                             # build-app.sh, build-dmg.sh, install.sh, run-dev.sh, readme-pictures.sh
+└── AppIcon.icon/                    # Icon Composer document (icon.json + Assets/note.svg, written by scripts/icon.sh)
+scripts/                             # build-app.sh, build-dmg.sh, install.sh, run-dev.sh, readme-pictures.sh, icon.sh
 docs/                                # README pictures: icon.png (exported icon); panel.png and icon-on/setup/off.png (drawn by readme-pictures.sh)
 ```
 
@@ -57,8 +59,9 @@ docs/                                # README pictures: icon.png (exported icon)
 - **Dependency injection**: protocols with an -ing suffix (`MediaKeyTapping`, `SpotifyControlling`, `AccessibilityChecking`, `LoginItemManaging`) plus closures with real defaults (`SpotifyRemote(isRunning:launch:send:sleep:)`, `AppModel(openSettings:)`). Tests pass fakes; nothing touches the real system.
 - **Errors**: no `throws` in app APIs. Failures return `Bool` or `nil` and are logged through `os.Logger` (`Logger.app`, subsystem = bundle ID). Never use `print`.
 - **Testing**: Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. `AppModel` tests use a throwaway `UserDefaults(suiteName:)` per test.
-- **Menu bar glyph**: drawn in code (`MenuBarGlyph.glyphPath()`, 1024 artboard, y down), with no image resources. It mirrors `Packaging/AppIcon.icon/Assets/note.svg`; change both together. The image fits any closed path into 18 × 18 pt. `.paused` dims the button; `.needsSetup` uses `badgedImage` (dot, bottom right).
-- **App icon**: an Icon Composer document (`Packaging/AppIcon.icon`) compiled by `actool` into `Assets.car` + `AppIcon.icns` at build time. Nothing is generated into the repo. Edit it in Icon Composer and preview it with `ictool` (see Commands). After changing it, re-export `docs/icon.png`.
+- **The note**: drawn once, in code (`MenuBarGlyph.glyphPath()`), from the named measurements in `MenuBarGlyph.Note`: two stems, a straight beam, two tilted elliptical heads, filleted corners, on the icon's 1024 artboard (y down). The shape follows the note on Apple's Music icon (fitted to within 1% of its area); the measurements also place it on the icon. Both the menu bar and the app icon come from this path, so change the note only there, then run `scripts/icon.sh` and `scripts/readme-pictures.sh`.
+- **Menu bar glyph**: a template image with no image resources. It is sized so the two stems are exactly 7 pt apart (15.7 pt tall) and nudged sideways so both land on whole pixels at 1x. `.paused` dims the button; `.needsSetup` uses `badgedImage` (dot, bottom right, with the note moved a point up and left so the dot does not cover the right head).
+- **App icon**: an Icon Composer document (`Packaging/AppIcon.icon`) compiled by `actool` into `Assets.car` + `AppIcon.icns` at build time: the green note (one glass layer, soft shadow) on a near-black tile, the same in light and dark. `Assets/note.svg` is written by `scripts/icon.sh`; never edit it by hand. `icon.json` (the tile's fill, the layer's settings) is edited by hand or in Icon Composer. Preview with `ictool` (see Commands).
 - **UI**: the panel uses Audio Priority's numbers (312 pt wide, 38 pt rows, 26 pt glyph circles, 10 pt padding); change them there and here together. SF Symbols and system colors, plus two of its own: `Color.spotifyGreen` (#1DB954 deepened so white text reads on it: #17964A in light mode, #1AA34A in dark) for the Spotify row and granted checks, and `Color.graphite` for the other row. Rows that can be chosen speak as a name plus a value, with the selected trait on the one in use; every pill button has a spoken label naming what it is for. Spotify's logo (`SpotifyLogo`, drawn in code, one ink) appears only in the panel's Spotify rows, to name where the keys go. Never use it in the menu bar, the app icon or anywhere else.
 - **Package resources**: there are none (no `Bundle.module`). Bundle resources come only from the build script.
 

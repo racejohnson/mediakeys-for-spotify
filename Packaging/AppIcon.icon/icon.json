@@ -3,17 +3,8 @@
     {
       "value": {
         "linear-gradient": [
-          "srgb:0.070,0.110,0.092,1.0",
-          "srgb:0.016,0.030,0.024,1.0"
-        ]
-      }
-    },
-    {
-      "appearance": "dark",
-      "value": {
-        "linear-gradient": [
-          "srgb:0.036,0.060,0.050,1.0",
-          "srgb:0.006,0.012,0.009,1.0"
+          "srgb:0.030,0.034,0.032,1.0",
+          "srgb:0.004,0.005,0.005,1.0"
         ]
       }
     }
@@ -37,31 +28,13 @@
       ],
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.4
+        "opacity": 0.22
       },
       "translucency": {
         "enabled": false,
         "value": 0.0
       },
       "specular": false
-    },
-    {
-      "layers": [
-        {
-          "image-name": "glow.svg",
-          "name": "glow",
-          "glass": false
-        }
-      ],
-      "shadow": {
-        "kind": "none",
-        "opacity": 0
-      },
-      "specular": false,
-      "translucency": {
-        "enabled": false,
-        "value": 0
-      }
     }
   ],
   "supported-platforms": {

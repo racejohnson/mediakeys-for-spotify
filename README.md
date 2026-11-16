@@ -88,6 +88,7 @@ It's a Swift package; there's no Xcode project.
 ./scripts/run-dev.sh           # build a debug copy and open it
 ./scripts/build-dmg.sh         # build/MediaKeys-for-Spotify.dmg
 ./scripts/readme-pictures.sh   # redraw this page's pictures from made-up state
+./scripts/icon.sh              # rewrite the icon's note from the menu bar's, and re-export docs/icon.png
 swift test                     # run the tests
 ```
 
@@ -95,4 +96,4 @@ Builds are signed with the first Developer ID or Apple Development certificate i
 
 ## License
 
-[MIT](LICENSE). MediaKeys for Spotify is an independent project, not affiliated with or endorsed by Spotify. Spotify and its logo are trademarks of Spotify AB; the logo appears in the panel only to name where the keys go.
+[MIT](LICENSE). MediaKeys for Spotify is an independent project, not affiliated with or endorsed by Spotify. Spotify and its logo are trademarks of Spotify AB; the logo appears in the panel only to name where the keys go. The note in the app icon and menu bar follows the one on Apple's Music icon; MediaKeys is not affiliated with or endorsed by Apple.
