@@ -11,6 +11,8 @@ final class PanelController {
     private let content: SizeReportingHostingView<PanelView>
     private var anchor: NSRect = .zero
     private var screen: NSScreen?
+    /// The status item the panel hangs from; nil when it was shown without one.
+    private weak var button: NSStatusBarButton?
     private var monitors: [Any] = []
     private var observers: [(NotificationCenter, any NSObjectProtocol)] = []
     /// When the panel last closed, in system uptime.
@@ -48,9 +50,17 @@ final class PanelController {
         }
     }
 
-    func show(below button: NSStatusBarButton) {
+    /// `takingFocus` is false when nobody clicked to open the panel (at launch): it must
+    /// not take the keyboard from whatever the person is typing in. A click inside it does.
+    func show(below button: NSStatusBarButton, takingFocus: Bool = true) {
         guard let window = button.window, let screen = window.screen else { return }
-        anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        self.button = button
+        show(anchoredAt: window.convertToScreen(button.convert(button.bounds, to: nil)), on: screen, takingFocus: takingFocus)
+    }
+
+    /// Shows the panel under `anchor`, a rectangle in screen coordinates.
+    func show(anchoredAt anchor: NSRect, on screen: NSScreen, takingFocus: Bool = true) {
+        self.anchor = anchor
         self.screen = screen
         model.isPanelVisible = true
         Task { await model.refresh() }
@@ -58,10 +68,12 @@ final class PanelController {
 
         panel.alphaValue = 0
         panel.orderFrontRegardless()
-        panel.makeKey()
-        // Nothing starts out focused: otherwise the first row, or the one
-        // clicked last time, opens looking hovered. Tab still moves in.
-        panel.makeFirstResponder(nil)
+        if takingFocus {
+            panel.makeKey()
+            // Nothing starts out focused: otherwise the first row, or the one
+            // clicked last time, opens looking hovered. Tab still moves in.
+            panel.makeFirstResponder(nil)
+        }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.12
             panel.animator().alphaValue = 1
@@ -75,6 +87,7 @@ final class PanelController {
         guard panel.isVisible else { return }
         stopMonitoring()
         panel.orderOut(nil)
+        button = nil
         closedAt = ProcessInfo.processInfo.systemUptime
         model.isPanelVisible = false
         onVisibilityChange?(false)
@@ -86,6 +99,21 @@ final class PanelController {
     private func closeForOutsideActivity() {
         guard !model.needsPermission else { return }
         close()
+    }
+
+    /// A display change can leave the anchor on a screen that moved or is gone. Outside
+    /// setup that closes the panel, as in the sibling apps. During setup it stays open
+    /// and moves back under the status item.
+    private func screenParametersChanged() {
+        guard model.needsPermission else { return close() }
+        // The status item's window moves after this notification arrives.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, panel.isVisible else { return }
+            guard let button, let window = button.window, let screen = window.screen else { return close() }
+            anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+            self.screen = screen
+            fit()
+        }
     }
 
     /// Sizes the panel to its content, centred under the status item and kept
@@ -122,10 +150,9 @@ final class PanelController {
         }
         observe(NSApplication.didResignActiveNotification, on: .default)
         observe(NSWorkspace.didActivateApplicationNotification, on: NSWorkspace.shared.notificationCenter)
-        // A display change can leave the anchor on a screen that moved or is gone.
         let center = NotificationCenter.default
         let observer = center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.close() }
+            MainActor.assumeIsolated { self?.screenParametersChanged() }
         }
         observers.append((center, observer))
     }

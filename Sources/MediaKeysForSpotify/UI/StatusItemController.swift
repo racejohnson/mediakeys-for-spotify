@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import os
 
 /// The menu bar note. Clicking it opens the panel, and clicking it again closes it.
 final class StatusItemController: NSObject {
@@ -25,16 +26,25 @@ final class StatusItemController: NSObject {
         render()
     }
 
-    /// Opens the panel without a click: at first launch, and when the app is opened again.
+    /// Opens the panel without a click: at first launch (`takingFocus: false`, so it does not
+    /// take the keyboard from another app) and when the app is opened again.
     /// Just after launch macOS has not yet put the item in the menu bar, and a panel
     /// opened then would hang from the wrong place, so this waits (up to two seconds) until it has.
-    func showPanel() {
+    /// If the item never gets a place (no room beside the notch, or hidden in System Settings),
+    /// the panel opens at the top right of the main screen instead of not at all.
+    func showPanel(takingFocus: Bool) {
         Task {
             for _ in 0..<20 where !isInMenuBar {
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            guard !panel.isVisible, isInMenuBar, let button = statusItem.button else { return }
-            panel.show(below: button)
+            guard !panel.isVisible else { return }
+            if isInMenuBar, let button = statusItem.button {
+                panel.show(below: button, takingFocus: takingFocus)
+            } else if let screen = NSScreen.main ?? NSScreen.screens.first {
+                Logger.app.notice("The status item is not in the menu bar; showing the panel at the top right")
+                let visible = screen.visibleFrame
+                panel.show(anchoredAt: NSRect(x: visible.maxX, y: visible.maxY, width: 0, height: 0), on: screen, takingFocus: takingFocus)
+            }
         }
     }
 
@@ -48,17 +58,20 @@ final class StatusItemController: NSObject {
     private func render() {
         withObservationTracking {
             let status = model.status
-            let description = switch status {
-            case .active: "MediaKeys for Spotify: on"
-            case .paused: "MediaKeys for Spotify: off"
-            case .needsSetup: "MediaKeys for Spotify: needs setup"
+            // In the panel's own words, so the tooltip and the panel never disagree.
+            let state = switch status {
+            case .active: "Media keys go to Spotify"
+            case .paused: "Media keys go to the app that played last"
+            case .needsSetup where !model.isSpotifyInstalled: "Spotify isn’t installed"
+            case .needsSetup where model.needsPermission: "Finish setup"
+            case .needsSetup: "Can’t catch the media keys"
             }
             if let button = statusItem.button {
-                // Off is a choice, so it dims; needing setup is a problem, so it gets a badge.
+                // Giving the keys back is a choice, so it dims; needing setup is a problem, so it gets a badge.
                 button.image = status == .needsSetup ? MenuBarGlyph.badgedImage : MenuBarGlyph.image
                 button.appearsDisabled = status == .paused
-                button.toolTip = description
-                button.setAccessibilityLabel(description)
+                button.toolTip = "MediaKeys for Spotify: \(state)"
+                button.setAccessibilityLabel("MediaKeys for Spotify. \(state)")
             }
         } onChange: { [weak self] in
             Task { @MainActor in self?.render() }

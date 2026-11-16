@@ -2,9 +2,10 @@ import AppKit
 import SwiftUI
 import os
 
-/// `--readme <folder>`: the README's picture of the panel, drawn off screen from made-up
-/// state so it comes out the same on any Mac. Nothing real is read, asked or changed:
-/// the models here run on stand-ins and a throwaway defaults suite.
+/// `--readme <folder>`: the README's pictures (the panel, and the menu bar note in its
+/// three states), drawn off screen from made-up state so they come out the same on any Mac.
+/// Nothing real is read, asked or changed: the models here run on stand-ins and a
+/// throwaway defaults suite. Exits non-zero, leaving the old pictures, if anything fails.
 enum ReadmePictures {
     private struct Shot {
         var panel: CGImage
@@ -25,12 +26,22 @@ enum ReadmePictures {
             // 3. Off, with Spotify closed, in dark mode.
             if let shot = await shoot(isEnabled: false, isSpotifyOpen: false, dark: true) { shots.append(shot) }
 
-            let url = folder.appendingPathComponent("panel.png")
-            if let tiff = hero(shots).tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
-               (try? rep.representation(using: .png, properties: [:])?.write(to: url)) != nil {
-                Logger.app.notice("Wrote \(url.path, privacy: .public)")
-            } else {
-                Logger.app.error("Could not write \(url.path, privacy: .public)")
+            guard shots.count == 3 else {
+                Logger.app.error("Drew \(shots.count) of 3 panels; the pictures were left as they were")
+                exit(EXIT_FAILURE)
+            }
+            // The note as it looks while on, while setup is missing and while off.
+            let pictures = [
+                ("panel.png", hero(shots)),
+                ("icon-on.png", chip(shots[0])), ("icon-setup.png", chip(shots[1])), ("icon-off.png", chip(shots[2])),
+            ]
+            for (name, image) in pictures {
+                let url = folder.appendingPathComponent(name)
+                guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+                      (try? rep.representation(using: .png, properties: [:])?.write(to: url)) != nil else {
+                    Logger.app.error("Could not write \(url.path, privacy: .public)")
+                    exit(EXIT_FAILURE)
+                }
             }
             NSApp.terminate(nil)
         }
@@ -108,17 +119,7 @@ enum ReadmePictures {
                     cornerWidth: 7, cornerHeight: 7, transform: nil
                 ))
                 context.fillPath()
-                // A template image is one ink: draw it, then tint what was drawn.
-                let itemRect = CGRect(x: bar.midX - item.width / 2, y: bar.midY - item.height / 2, width: item.width, height: item.height)
-                context.saveGState()
-                context.setAlpha(shot.itemAlpha)
-                context.beginTransparencyLayer(in: itemRect, auxiliaryInfo: nil)
-                shot.item.draw(in: itemRect)
-                context.setBlendMode(.sourceIn)
-                context.setFillColor(CGColor(gray: 1, alpha: 1))
-                context.fill(itemRect)
-                context.endTransparencyLayer()
-                context.restoreGState()
+                drawItem(shot, centredAt: CGPoint(x: bar.midX, y: bar.midY), in: context)
 
                 // The panel: rounded, with its shadow and a hairline edge.
                 let frame = CGRect(x: left, y: bar.minY - barGap - shot.size.height, width: panelWidth, height: shot.size.height)
@@ -140,6 +141,32 @@ enum ReadmePictures {
                 context.strokePath()
             }
         }
+    }
+
+    /// The note on a piece of menu bar, to sit in a line of the README's text.
+    private static func chip(_ shot: Shot) -> NSImage {
+        let size = CGSize(width: 56, height: 30)
+        return draw(width: size.width, height: size.height) { context in
+            context.setFillColor(.black)
+            context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 7, cornerHeight: 7, transform: nil))
+            context.fillPath()
+            drawItem(shot, centredAt: CGPoint(x: size.width / 2, y: size.height / 2), in: context)
+        }
+    }
+
+    /// The menu bar note in white. A template image is one ink: draw it, then tint what was drawn.
+    private static func drawItem(_ shot: Shot, centredAt centre: CGPoint, in context: CGContext) {
+        let size = shot.item.size
+        let rect = CGRect(x: centre.x - size.width / 2, y: centre.y - size.height / 2, width: size.width, height: size.height)
+        context.saveGState()
+        context.setAlpha(shot.itemAlpha)
+        context.beginTransparencyLayer(in: rect, auxiliaryInfo: nil)
+        shot.item.draw(in: rect)
+        context.setBlendMode(.sourceIn)
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(rect)
+        context.endTransparencyLayer()
+        context.restoreGState()
     }
 
     /// Draws into a 2× bitmap, in points.
@@ -196,8 +223,7 @@ private struct DemoAccessibility: AccessibilityChecking {
 }
 
 private struct DemoLoginItem: LoginItemManaging {
-    let isEnabled = true
-    let needsApproval = false
-    func setEnabled(_ enabled: Bool) {}
+    let state = LoginItemState.enabled
+    func setEnabled(_ enabled: Bool) -> Bool { true }
     func openSystemSettings() {}
 }

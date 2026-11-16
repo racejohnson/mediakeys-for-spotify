@@ -19,6 +19,7 @@ private final class FakeSpotify: SpotifyControlling {
     var isRunning = false
     var status: AutomationStatus?
     var statusWhenAsked: AutomationStatus?
+    var launchSucceeds = true
     private(set) var launches = 0
 
     func automationStatus(askingIfNeeded: Bool) async -> AutomationStatus? {
@@ -27,8 +28,8 @@ private final class FakeSpotify: SpotifyControlling {
 
     func launchInBackground() async -> Bool {
         launches += 1
-        isRunning = true
-        return true
+        isRunning = launchSucceeds
+        return launchSucceeds
     }
 }
 
@@ -39,14 +40,26 @@ private final class FakeAccessibility: AccessibilityChecking {
 }
 
 private final class FakeLoginItem: LoginItemManaging {
-    var isEnabled = false
+    var state = LoginItemState.off
+    /// Turned off in System Settings: adding it again only gets as far as "needs approval".
     var needsApproval = false
+    /// False for a copy outside Applications, which macOS will not add.
+    var isFound = true
     private(set) var calls: [Bool] = []
     private(set) var settingsOpened = 0
 
-    func setEnabled(_ enabled: Bool) {
+    func setEnabled(_ enabled: Bool) -> Bool {
         calls.append(enabled)
-        isEnabled = enabled && !needsApproval
+        guard enabled else {
+            state = .off
+            return true
+        }
+        guard isFound else {
+            state = .notFound
+            return false
+        }
+        state = needsApproval ? .needsApproval : .enabled
+        return true
     }
 
     func openSystemSettings() { settingsOpened += 1 }
@@ -270,19 +283,87 @@ struct AppModelTests {
         let model = harness.makeModel()
         #expect(model.opensAtLogin)
 
-        harness.loginItem.isEnabled = false // turned off in System Settings
+        harness.loginItem.state = .off // removed in System Settings
         await model.refresh()
         #expect(!model.opensAtLogin)
     }
 
-    @Test func blockedLoginItemOpensSystemSettings() {
+    @Test func blockedLoginItemSaysItNeedsApproval() async {
         let harness = Harness()
         let model = harness.makeModel()
         model.setOpensAtLogin(false)
         harness.loginItem.needsApproval = true
         model.setOpensAtLogin(true)
-        #expect(!model.opensAtLogin)
+        #expect(model.opensAtLogin) // on, and waiting
+        #expect(model.loginItemIssue == .needsApproval)
+        #expect(harness.loginItem.settingsOpened == 0) // the panel offers the link; nothing opens by itself
+
+        model.openLoginItems()
         #expect(harness.loginItem.settingsOpened == 1)
+
+        harness.loginItem.state = .enabled // approved in System Settings
+        await model.refresh()
+        #expect(model.opensAtLogin)
+        #expect(model.loginItemIssue == nil)
+    }
+
+    @Test func loginItemOutsideApplicationsIsExplained() async {
+        let harness = Harness()
+        harness.loginItem.isFound = false
+        let model = harness.makeModel()
+        #expect(!model.opensAtLogin)
+        #expect(model.loginItemIssue == nil) // the first launch's own try is not the person's
+
+        model.setOpensAtLogin(true)
+        #expect(!model.opensAtLogin)
+        #expect(model.loginItemIssue == .notInApplications)
+
+        await model.refresh() // the poll must not wipe the reason
+        #expect(model.loginItemIssue == .notInApplications)
+
+        model.setOpensAtLogin(false)
+        #expect(model.loginItemIssue == nil)
+    }
+
+    @Test func failedSpotifyLaunchIsReported() async {
+        let harness = Harness()
+        harness.spotify.launchSucceeds = false
+        let model = harness.makeModel()
+        await model.requestAutomation()
+        #expect(model.automationRequestFailed)
+        #expect(model.automation == .notDetermined)
+        #expect(!model.isRequestingAutomation)
+
+        harness.spotify.launchSucceeds = true
+        harness.spotify.statusWhenAsked = .granted
+        await model.requestAutomation()
+        #expect(!model.automationRequestFailed)
+        #expect(model.automation == .granted)
+    }
+
+    @Test func unansweredAutomationRequestIsReported() async {
+        let harness = Harness()
+        harness.spotify.statusWhenAsked = nil // Spotify opened, but macOS could not say
+        let model = harness.makeModel()
+        await model.requestAutomation()
+        #expect(model.automationRequestFailed)
+    }
+
+    @Test func openingAutomationSettingsOpensSpotifySoTheAnswerCanBeRead() async {
+        let harness = Harness()
+        harness.accessibility.isTrusted = true
+        harness.defaults.set("denied", forKey: "spotifyAutomation")
+        let model = harness.makeModel()
+        #expect(model.automation == .denied)
+        await model.refresh() // Spotify is closed, so macOS cannot say otherwise
+        #expect(model.automation == .denied)
+
+        harness.spotify.status = .granted // switched back on in System Settings
+        await model.openAutomationSettings()
+        #expect(harness.openedPanes == [.automation])
+        #expect(harness.spotify.launches == 1)
+        #expect(model.automation == .granted)
+        #expect(model.status == .active)
     }
 
     @Test func respectsVersionOneLoginOptOut() {

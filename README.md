@@ -19,7 +19,7 @@ On a Mac, the play key goes to whichever app last played sound. Press it and you
 MediaKeys for Spotify fixes that. It sits in your menu bar and sends play/pause, next and previous straight to Spotify, whatever app you're in.
 
 <p align="center">
-  <img src="docs/panel.png" width="840" alt="The MediaKeys for Spotify panel open below its note in the menu bar, three times: Spotify chosen and filled green, the first launch with two permissions to allow, and the keys given back to the app that played last, in dark mode">
+  <img src="docs/panel.png" width="840" alt="The MediaKeys for Spotify panel open below its note in the menu bar, three times: Spotify chosen and filled green, the first launch with two permissions to allow and neither row filled yet, and the keys given back to the app that played last, in dark mode">
 </p>
 
 - **Set it and forget it.** Allow two permissions once and it just works, every time you log in.
@@ -44,24 +44,24 @@ This builds the app, puts it in your **Applications** folder and opens it. To up
 
 When you first open the app, its panel opens under the note in your menu bar and asks for two permissions, as in the middle picture above.
 
-- **Accessibility** lets MediaKeys catch the media keys before other apps do. Click **Allow…** and switch on MediaKeys for Spotify in the list that opens.
-- **Spotify** lets MediaKeys tell Spotify to play, pause and skip. Click **Allow…**, then **Allow** again when macOS asks.
+- **Accessibility** lets MediaKeys catch the media keys before other apps do. Click **Allow…**, choose **Open System Settings** when macOS asks, then switch on MediaKeys for Spotify. If you closed that prompt, click **Open Settings** in the panel.
+- **Spotify** lets MediaKeys tell Spotify to play, pause and skip. Click **Allow…**. Spotify opens in the background if it's closed, and macOS asks once: click **Allow**.
 
-The panel stays open while you do this. Once both are allowed, the two rows go away and Spotify has the keys. You need the Spotify desktop app; if it isn't installed, the panel links to it.
+The panel stays open while you do this. Once both are allowed, the two rows say **All set** and go away, and Spotify has the keys. You need the Spotify desktop app; if it isn't installed, the panel links to it.
 
 ## Use it
 
 MediaKeys has no Dock icon; it lives in your menu bar as ♫. Click it to open the panel, and click it again to close it.
 
 - **Media keys go to**: the filled row has the keys. Click **Spotify** to send them there, or **The app that played last** to give them back to macOS for a while.
-- **Spotify's second line** says whether it's open. If it's closed, pressing play opens it.
+- **Spotify's second line** says whether it's open. If it's closed, pressing play opens it. If Spotify isn't installed or setup isn't finished, the row is dimmed, says why and can't be chosen; neither row is filled until Spotify can take the keys.
 - **Finish setup** shows at the top only while a permission is missing.
-- **Open at Login**: on by default.
+- **Open at Login**: on by default. If macOS needs your approval first, the panel says so and links to Login Items.
 - **Quit**, next to the version.
 
 From the keyboard: Tab moves between the rows, Return chooses one, and Esc closes the panel.
 
-The icon looks like <img src="docs/icon-on.png" height="20" alt="the bright note icon"> while MediaKeys is on, dims to <img src="docs/icon-off.png" height="20" alt="the dimmed note icon"> while it's off, and shows a small dot when setup isn't finished.
+The icon looks like <img src="docs/icon-on.png" height="20" alt="the bright note icon"> while Spotify has the keys, dims to <img src="docs/icon-off.png" height="20" alt="the dimmed note icon"> while the keys are with the app that played last, and shows a small dot <img src="docs/icon-setup.png" height="20" alt="the note icon with a small dot at its lower right"> when Spotify can't take the keys yet: a permission is missing or Spotify isn't installed.
 
 ## Questions
 
@@ -69,7 +69,7 @@ The icon looks like <img src="docs/icon-on.png" height="20" alt="the bright note
 No. It only listens to the special keys, like play and volume, never letters or numbers, and it acts only on play/pause, next and previous. macOS lists this under Accessibility, which is why it asks for that permission.
 
 **My media keys go to other apps instead of Spotify.**
-Click the menu bar icon. Make sure **Spotify** is the filled row, and if you see **Finish setup**, allow what's missing. If Accessibility already looks allowed but keys still don't reach Spotify, open **System Settings → Privacy & Security → Accessibility**, select MediaKeys for Spotify, click **−**, then open MediaKeys and allow it again. This can happen after an update.
+Click the menu bar icon. Make sure **Spotify** is the filled row, and if you see **Finish setup**, allow what's missing. If Accessibility already looks allowed but keys still don't reach Spotify, open **System Settings → Privacy & Security → Accessibility**, select MediaKeys for Spotify, click **−**, then click **+** and add it again from Applications. This can happen after an update.
 
 **Does it work with Spotify in a web browser?**
 No. It controls the [Spotify desktop app](https://www.spotify.com/download).
@@ -78,7 +78,7 @@ No. It controls the [Spotify desktop app](https://www.spotify.com/download).
 On purpose: each press counts once, so a held key can't race through your queue.
 
 **How do I uninstall it?**
-Click the menu bar icon, click **Quit**, and drag the app from Applications to the Trash. You can also remove it from **Accessibility** and **Automation** in **System Settings → Privacy & Security**.
+Open the panel, turn off **Open at Login** and click **Quit**. Then drag MediaKeys for Spotify from Applications to the Trash. You can also remove it from **Accessibility** and **Automation** in **System Settings → Privacy & Security**. To remove its saved settings too, run `defaults delete com.racejohnson.mediakeys-for-spotify` in Terminal.
 
 ## For developers
 
@@ -87,7 +87,7 @@ It's a Swift package; there's no Xcode project.
 ```bash
 ./scripts/run-dev.sh           # build a debug copy and open it
 ./scripts/build-dmg.sh         # build/MediaKeys-for-Spotify.dmg
-./scripts/readme-pictures.sh   # redraw docs/panel.png from made-up state
+./scripts/readme-pictures.sh   # redraw this page's pictures from made-up state
 swift test                     # run the tests
 ```
 

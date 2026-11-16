@@ -5,16 +5,22 @@ import SwiftUI
 /// open at login and a quiet footer.
 struct PanelView: View {
     let model: AppModel
+    /// True for a moment after the last permission is allowed with the panel open,
+    /// so the setup rows stay long enough to show "All set" and both ticks.
+    @State private var setupLingers = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.needsPermission {
-                SetupSection(model: model)
-                Rule()
+            if model.needsPermission || setupLingers {
+                Group {
+                    SetupSection(model: model)
+                    Rule()
+                }
+                .transition(.opacity)
             }
             RouteSection(model: model)
             Rule()
-            SwitchRow(title: "Open at Login", isOn: Binding(get: { model.opensAtLogin }, set: model.setOpensAtLogin))
+            LoginItemRow(model: model)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 2)
             Rule()
@@ -25,14 +31,36 @@ struct PanelView: View {
         // The panel takes key focus without activating the app; without this its
         // controls would draw in the inactive (grey) style.
         .environment(\.controlActiveState, .key)
+        .onChange(of: model.needsPermission) { _, needsPermission in
+            setupLingers = !needsPermission && model.isPanelVisible
+        }
+        .onChange(of: model.isPanelVisible) { _, isVisible in
+            if !isVisible { setupLingers = false }
+        }
+        .task(id: setupLingers) {
+            guard setupLingers else { return }
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
+            withAnimation(Motion.glide) { setupLingers = false }
+        }
+    }
+}
+
+// MARK: Motion
+
+enum Motion {
+    /// The panel's one animation, or none when the person has asked macOS to reduce motion.
+    static var glide: Animation? {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .snappy(duration: 0.2)
     }
 }
 
 // MARK: Colours
 
 extension Color {
-    /// Spotify green (#1DB954), deepened in light mode so white text reads on it.
-    static let spotifyGreen = dynamic(light: 0x17964A, dark: 0x1DB954)
+    /// Spotify green (#1DB954), deepened so white text reads on it: a little in dark mode,
+    /// more in light. The same contrast as Audio Priority's blue.
+    static let spotifyGreen = dynamic(light: 0x17964A, dark: 0x1AA34A)
     /// The fill of "the app that played last" while it has the keys.
     static let graphite = dynamic(light: 0x6E6E73, dark: 0x636366)
 
@@ -57,17 +85,24 @@ private struct SetupSection: View {
         let needsSpotify = model.isSpotifyInstalled && model.automation != .granted
         let missing = (model.isAccessibilityGranted ? 0 : 1) + (needsSpotify ? 1 : 0)
         VStack(alignment: .leading, spacing: 1) {
-            SectionHeader(title: "Finish setup", hint: "\(missing) to allow")
+            SectionHeader(title: "Finish setup", hint: missing == 0 ? "All set" : "\(missing) to allow")
             PanelRow(glyph: .symbol("keyboard"), title: "Accessibility", detail: "To catch the media keys") {
                 if model.isAccessibilityGranted {
                     Allowed(name: "Accessibility")
                 } else {
+                    // The pills look alike, so each says what it is for when spoken or hovered.
+                    let purpose = model.hasRequestedAccessibility ? "Open Accessibility in System Settings" : "Allow Accessibility"
                     Button(model.hasRequestedAccessibility ? "Open Settings" : "Allow…", action: model.requestAccessibility)
                         .buttonStyle(PillButtonStyle())
+                        .accessibilityLabel(purpose)
+                        .help(purpose)
                 }
             }
             if model.isSpotifyInstalled {
-                PanelRow(glyph: .spotify, title: "Spotify", detail: "To play, pause and skip") {
+                PanelRow(
+                    glyph: .spotify, title: "Spotify",
+                    detail: model.automationRequestFailed ? "Couldn’t reach Spotify. Open it, then try again" : "To play, pause and skip"
+                ) {
                     if model.automation == .granted {
                         Allowed(name: "Spotify")
                     } else if model.isRequestingAutomation {
@@ -75,16 +110,20 @@ private struct SetupSection: View {
                             .controlSize(.small)
                             .accessibilityLabel("Asking Spotify")
                     } else if model.automation == .denied {
-                        Button("Open Settings", action: model.openAutomationSettings)
+                        Button("Open Settings") { Task { await model.openAutomationSettings() } }
                             .buttonStyle(PillButtonStyle())
+                            .accessibilityLabel("Open Automation in System Settings")
+                            .help("Open Automation in System Settings")
                     } else {
                         Button("Allow…") { Task { await model.requestAutomation() } }
                             .buttonStyle(PillButtonStyle())
+                            .accessibilityLabel("Allow control of Spotify")
+                            .help("Allow MediaKeys to control Spotify")
                     }
                 }
             }
             if model.hasRequestedAccessibility, !model.isAccessibilityGranted {
-                Note(text: "Turn on MediaKeys for Spotify in System Settings. If it’s already on, select it, click −, then add it again.")
+                Note(text: "Turn on MediaKeys for Spotify in System Settings. If it’s already on, select it, click −, then click + and add it from Applications.")
                     .padding(.top, 5)
             }
         }
@@ -92,17 +131,22 @@ private struct SetupSection: View {
 }
 
 /// Where the keys go. Choosing a row is the app's on and off.
+///
+/// A row is filled when it is both chosen and true: Spotify once it really has the keys,
+/// the other row once the person has given them back. Chosen but not yet working (a
+/// permission missing, Spotify not installed, the tap down) fills neither, so the row
+/// that looks chosen is never one a click would quietly switch off.
 private struct RouteSection: View {
     let model: AppModel
 
     var body: some View {
-        let toSpotify = model.status == .active
         VStack(alignment: .leading, spacing: 1) {
             SectionHeader(title: "Media keys go to", hint: "play · next · previous")
             PanelRow(
                 glyph: .spotify, title: "Spotify", detail: spotifyDetail,
-                isCurrent: toSpotify, isDimmed: !model.canChooseSpotify,
-                help: model.canChooseSpotify ? "Send play, next and previous to Spotify" : spotifyDetail,
+                isCurrent: model.status == .active, isDimmed: !model.canChooseSpotify,
+                // An unavailable row already says why in its second line.
+                help: model.canChooseSpotify ? "Send play, next and previous to Spotify" : nil,
                 action: model.canChooseSpotify ? { model.isEnabled = true } : nil
             ) {
                 if !model.isSpotifyInstalled {
@@ -112,7 +156,7 @@ private struct RouteSection: View {
             }
             PanelRow(
                 glyph: .symbol("macwindow"), title: "The app that played last", detail: "The macOS default",
-                isCurrent: !toSpotify, fill: .graphite,
+                isCurrent: !model.isEnabled, fill: .graphite,
                 help: "Leave the keys to macOS",
                 action: { model.isEnabled = false }
             ) { EmptyView() }
@@ -122,6 +166,8 @@ private struct RouteSection: View {
     private var spotifyDetail: String {
         if !model.isSpotifyInstalled { return "Not installed" }
         if model.needsPermission { return "Finish setup to use" }
+        // Everything is allowed but macOS would not start the tap; the model retries every second.
+        if model.isEnabled, !model.isTapRunning { return "Can’t catch the keys. Trying again…" }
         return model.isSpotifyRunning ? "Open" : "Opens when you press play"
     }
 }
@@ -175,6 +221,10 @@ private struct PanelRow<Trailing: View>: View {
             }
             .foregroundStyle(isCurrent ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             .opacity(dim)
+            // Read as one thing, apart from any button beside it. A row that can be
+            // chosen replaces this with its own label and value below.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(isDimmed ? "\(title), unavailable, \(detail)" : "\(title), \(detail)")
 
             Spacer(minLength: 2)
             trailing
@@ -186,6 +236,11 @@ private struct PanelRow<Trailing: View>: View {
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(isCurrent ? AnyShapeStyle(fill) : AnyShapeStyle(.primary.opacity(action != nil && (isHovering || isFocused) ? 0.055 : 0)))
+        )
+        // A filled row cannot show the hover fill, so keyboard focus draws a white edge on it.
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(.white.opacity(isCurrent && isFocused ? 0.6 : 0), lineWidth: 1.5)
         )
         .contentShape(Rectangle())
         .help(help ?? "")
@@ -200,15 +255,19 @@ private struct PanelRow<Trailing: View>: View {
                 }
                 .focusable()
                 .focused($isFocused)
-                // No system focus ring: a focused row takes the hover fill instead.
+                // No system focus ring: a focused row takes the hover fill, or the white edge when filled.
                 .focusEffectDisabled()
                 .onKeyPress(keys: [.return, .space]) { _ in
                     action()
                     return .handled
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(isCurrent ? "\(title), in use" : "\(title), \(detail)")
+                // The name, then its second line as the value, so "Open" is still read once
+                // the row is in use; the selected trait says which row that is.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityValue(detail)
                 .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
+                .accessibilityAction { action() }
         } else {
             row
         }
@@ -256,7 +315,7 @@ private struct SectionHeader: View {
         }
         .padding(.horizontal, 10)
         .padding(.top, 2)
-        .padding(.bottom, 4)
+        .padding(.bottom, 3)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -282,6 +341,29 @@ private struct Note: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.primary.opacity(0.075)))
+    }
+}
+
+/// Open at Login, with the reason under it when macOS has not simply turned it on.
+private struct LoginItemRow: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SwitchRow(title: "Open at Login", isOn: Binding(get: { model.opensAtLogin }, set: model.setOpensAtLogin))
+            if let issue = model.loginItemIssue {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(issue.message)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if issue == .needsApproval {
+                        Button("Open Login Items", action: model.openLoginItems)
+                            .buttonStyle(.link)
+                    }
+                }
+                .font(.system(size: 11))
+            }
+        }
     }
 }
 
@@ -314,7 +396,8 @@ private struct DrawnSwitchStyle: ToggleStyle {
         HStack {
             configuration.label
             Capsule()
-                .fill(configuration.isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary.opacity(0.16)))
+                // System blue, not the accent colour, so the picture is the same on every Mac.
+                .fill(configuration.isOn ? AnyShapeStyle(Color(nsColor: .systemBlue)) : AnyShapeStyle(.primary.opacity(0.16)))
                 .frame(width: 36, height: 17)
                 .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                     Capsule()

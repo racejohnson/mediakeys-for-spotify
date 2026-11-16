@@ -14,6 +14,21 @@ final class AppModel {
         case needsSetup
     }
 
+    /// Why Open at Login is not simply on, in the panel's words.
+    enum LoginItemIssue: Equatable {
+        case needsApproval
+        case notInApplications
+        case failed
+
+        var message: String {
+            switch self {
+            case .needsApproval: "Needs your approval."
+            case .notInApplications: "Move MediaKeys for Spotify to Applications first."
+            case .failed: "Couldn’t add it to Login Items."
+            }
+        }
+    }
+
     /// Whether the person wants media keys sent to Spotify.
     var isEnabled: Bool {
         didSet {
@@ -26,13 +41,21 @@ final class AppModel {
     private(set) var isSpotifyInstalled: Bool
     private(set) var isSpotifyRunning: Bool
     private(set) var automation: AutomationStatus {
-        didSet { defaults.set(automation.rawValue, forKey: Keys.automation) }
+        didSet {
+            defaults.set(automation.rawValue, forKey: Keys.automation)
+            // macOS answered, so the last request did reach Spotify.
+            if automation != oldValue { automationRequestFailed = false }
+        }
     }
+    /// On while macOS has the app as a login item, including while it waits for approval.
     private(set) var opensAtLogin: Bool
+    private(set) var loginItemIssue: LoginItemIssue?
     private(set) var isTapRunning = false
     /// macOS shows its Accessibility prompt once; after that only System Settings helps.
     private(set) var hasRequestedAccessibility = false
     private(set) var isRequestingAutomation = false
+    /// The last Allow… for Spotify got no answer: Spotify did not open, or macOS could not say.
+    private(set) var automationRequestFailed = false
 
     var isPanelVisible = false {
         didSet { updatePolling() }
@@ -96,7 +119,9 @@ final class AppModel {
                 loginItem.setEnabled(true)
             }
         }
-        opensAtLogin = loginItem.isEnabled
+        let loginState = loginItem.state
+        opensAtLogin = loginState == .enabled || loginState == .needsApproval
+        loginItemIssue = loginState == .needsApproval ? .needsApproval : nil
 
         reconcile()
     }
@@ -108,7 +133,7 @@ final class AppModel {
         isAccessibilityGranted = accessibility.isTrusted
         isSpotifyInstalled = spotify.isInstalled
         isSpotifyRunning = spotify.isRunning
-        opensAtLogin = loginItem.isEnabled
+        readLoginItem()
         if let answer = await spotify.automationStatus(askingIfNeeded: false) {
             automation = answer
         }
@@ -126,15 +151,22 @@ final class AppModel {
     }
 
     /// macOS only asks while Spotify is running, so open it quietly first.
+    /// If Spotify does not open or macOS cannot answer, `automationRequestFailed` says so.
     func requestAutomation() async {
         guard !isRequestingAutomation else { return }
         isRequestingAutomation = true
+        automationRequestFailed = false
         defer { isRequestingAutomation = false }
 
-        guard await spotify.launchInBackground() else { return }
+        guard await spotify.launchInBackground() else {
+            automationRequestFailed = true
+            return
+        }
         isSpotifyRunning = spotify.isRunning
         if let answer = await spotify.automationStatus(askingIfNeeded: true) {
             automation = answer
+        } else {
+            automationRequestFailed = true
         }
         reconcile()
     }
@@ -145,15 +177,40 @@ final class AppModel {
         reconcile()
     }
 
-    func openAutomationSettings() {
+    /// For undoing a denial. macOS can only report the new answer while Spotify is running,
+    /// so Spotify is opened quietly behind System Settings; the poll then sees the switch flip.
+    func openAutomationSettings() async {
         openSettings(.automation)
+        guard await spotify.launchInBackground() else { return }
+        await refresh()
     }
 
     func setOpensAtLogin(_ enabled: Bool) {
-        loginItem.setEnabled(enabled)
-        opensAtLogin = loginItem.isEnabled
-        if enabled, !opensAtLogin, loginItem.needsApproval {
-            loginItem.openSystemSettings()
+        let succeeded = loginItem.setEnabled(enabled)
+        readLoginItem(failedToTurnOn: enabled && !succeeded)
+        if !enabled { loginItemIssue = nil }
+    }
+
+    func openLoginItems() {
+        loginItem.openSystemSettings()
+    }
+
+    /// Reads the login item from macOS. A failed attempt to turn it on leaves a reason,
+    /// which stays until the switch is turned off or macOS reports it on.
+    private func readLoginItem(failedToTurnOn: Bool = false) {
+        let state = loginItem.state
+        opensAtLogin = state == .enabled || state == .needsApproval
+        switch state {
+        case .enabled:
+            loginItemIssue = nil
+        case .needsApproval:
+            loginItemIssue = .needsApproval
+        case .notFound, .off:
+            if failedToTurnOn {
+                loginItemIssue = state == .notFound ? .notInApplications : .failed
+            } else if loginItemIssue == .needsApproval {
+                loginItemIssue = nil
+            }
         }
     }
 

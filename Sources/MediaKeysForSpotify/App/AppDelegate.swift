@@ -13,7 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static func main() {
         let app = NSApplication.shared
         // `--readme <folder>` redraws the README's pictures and quits, without touching the real system.
-        if let flag = CommandLine.arguments.firstIndex(of: "--readme"), CommandLine.arguments.count > flag + 1 {
+        if let flag = CommandLine.arguments.firstIndex(of: "--readme") {
+            // Never fall through to a real launch: that would start the tap and add the login item.
+            guard CommandLine.arguments.indices.contains(flag + 1) else {
+                Logger.app.error("--readme needs a folder")
+                exit(64)
+            }
             app.setActivationPolicy(.prohibited)
             ReadmePictures.write(to: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
             app.run()
@@ -26,6 +31,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Two copies would each draw a note and each catch the media keys. A copy that is
+        // already quitting (an install replacing it) does not count.
+        if let bundleID = Bundle.main.bundleIdentifier,
+           NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).contains(where: { $0 != .current && !$0.isTerminated }) {
+            NSApp.terminate(nil)
+            return
+        }
+
         let spotify = SpotifyRemote()
         let tap = MediaKeyTap { spotify.handle($0) }
         model = AppModel(tap: tap, spotify: spotify)
@@ -36,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await model.refresh()
             // Something to allow: open the panel, which says what.
-            if model.needsPermission { statusItem.showPanel() }
+            if model.needsPermission { statusItem.showPanel(takingFocus: false) }
         }
     }
 
@@ -63,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Opening the app again (Finder, Spotlight) opens the panel.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        statusItem.showPanel()
+        statusItem?.showPanel(takingFocus: true)
         return false
     }
 }
