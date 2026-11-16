@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "MediaKeysForSpotify",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v26)],
     targets: [
         .executableTarget(
             name: "MediaKeysForSpotify",

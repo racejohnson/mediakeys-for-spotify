@@ -8,7 +8,7 @@ final class AppModel {
     enum Status {
         /// Media keys go to Spotify.
         case active
-        /// The person turned MediaKeys off.
+        /// The person gave the keys back to macOS.
         case paused
         /// On, but a permission is missing, Spotify isn't installed, or the tap could not start.
         case needsSetup
@@ -24,6 +24,7 @@ final class AppModel {
 
     private(set) var isAccessibilityGranted: Bool
     private(set) var isSpotifyInstalled: Bool
+    private(set) var isSpotifyRunning: Bool
     private(set) var automation: AutomationStatus {
         didSet { defaults.set(automation.rawValue, forKey: Keys.automation) }
     }
@@ -33,16 +34,17 @@ final class AppModel {
     private(set) var hasRequestedAccessibility = false
     private(set) var isRequestingAutomation = false
 
-    var isSetupWindowVisible = false {
+    var isPanelVisible = false {
         didSet { updatePolling() }
     }
 
-    var isSetupComplete: Bool { isAccessibilityGranted && automation == .granted }
-
-    /// A permission is missing that the setup window can ask for. Installing Spotify is up to the person.
+    /// A permission is missing that the panel can ask for. Installing Spotify is up to the person.
     var needsPermission: Bool {
         !isAccessibilityGranted || (isSpotifyInstalled && automation != .granted)
     }
+
+    /// Whether the panel's Spotify row can be chosen: Spotify is here and nothing is left to allow.
+    var canChooseSpotify: Bool { isSpotifyInstalled && !needsPermission }
 
     var status: Status {
         if !isEnabled { return .paused }
@@ -85,6 +87,7 @@ final class AppModel {
         automation = defaults.string(forKey: Keys.automation).flatMap(AutomationStatus.init) ?? .notDetermined
         isAccessibilityGranted = accessibility.isTrusted
         isSpotifyInstalled = spotify.isInstalled
+        isSpotifyRunning = spotify.isRunning
 
         // Open at login by default, once. Never again, so turning it off sticks.
         if !defaults.bool(forKey: Keys.didOfferLoginItem) {
@@ -104,6 +107,7 @@ final class AppModel {
     func refresh() async {
         isAccessibilityGranted = accessibility.isTrusted
         isSpotifyInstalled = spotify.isInstalled
+        isSpotifyRunning = spotify.isRunning
         opensAtLogin = loginItem.isEnabled
         if let answer = await spotify.automationStatus(askingIfNeeded: false) {
             automation = answer
@@ -128,6 +132,7 @@ final class AppModel {
         defer { isRequestingAutomation = false }
 
         guard await spotify.launchInBackground() else { return }
+        isSpotifyRunning = spotify.isRunning
         if let answer = await spotify.automationStatus(askingIfNeeded: true) {
             automation = answer
         }
@@ -170,7 +175,7 @@ final class AppModel {
 
     /// Permissions have no reliable change notifications, so poll, but only while it matters.
     private func updatePolling() {
-        let shouldPoll = isSetupWindowVisible || needsPermission || (status == .needsSetup && isSpotifyInstalled)
+        let shouldPoll = isPanelVisible || needsPermission || (status == .needsSetup && isSpotifyInstalled)
         if shouldPoll, pollTask == nil {
             pollTask = Task { [weak self] in
                 while !Task.isCancelled {

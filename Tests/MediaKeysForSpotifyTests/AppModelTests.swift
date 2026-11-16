@@ -16,6 +16,7 @@ private final class FakeTap: MediaKeyTapping {
 
 private final class FakeSpotify: SpotifyControlling {
     var isInstalled = true
+    var isRunning = false
     var status: AutomationStatus?
     var statusWhenAsked: AutomationStatus?
     private(set) var launches = 0
@@ -26,6 +27,7 @@ private final class FakeSpotify: SpotifyControlling {
 
     func launchInBackground() async -> Bool {
         launches += 1
+        isRunning = true
         return true
     }
 }
@@ -138,7 +140,8 @@ struct AppModelTests {
         await model.refresh()
         #expect(!harness.tap.isRunning)
         #expect(model.status == .needsSetup)
-        #expect(!model.needsPermission) // nothing the setup window can ask for
+        #expect(!model.needsPermission) // nothing the panel can ask for
+        #expect(!model.canChooseSpotify)
 
         harness.spotify.isInstalled = true
         await model.refresh()
@@ -170,7 +173,7 @@ struct AppModelTests {
         harness.spotify.status = .granted
         await model.refresh()
         #expect(model.status == .active)
-        #expect(model.isSetupComplete)
+        #expect(model.canChooseSpotify)
 
         model.isEnabled = false
         #expect(model.status == .paused)
@@ -206,6 +209,38 @@ struct AppModelTests {
         await model.requestAutomation()
         #expect(harness.spotify.launches == 1)
         #expect(model.automation == .granted)
+        #expect(model.isSpotifyRunning) // the panel's Spotify row now says "Open"
+    }
+
+    @Test func spotifyCannotBeChosenUntilEverythingIsAllowed() async {
+        let harness = Harness()
+        let model = harness.makeModel()
+        #expect(!model.canChooseSpotify)
+
+        harness.accessibility.isTrusted = true
+        await model.refresh()
+        #expect(!model.canChooseSpotify) // Spotify not allowed yet
+
+        harness.spotify.status = .granted
+        await model.refresh()
+        #expect(model.canChooseSpotify)
+
+        model.isEnabled = false // off is a choice, not something missing
+        #expect(model.canChooseSpotify)
+    }
+
+    @Test func refreshTracksWhetherSpotifyIsOpen() async {
+        let harness = Harness()
+        let model = harness.makeModel()
+        #expect(!model.isSpotifyRunning)
+
+        harness.spotify.isRunning = true
+        await model.refresh()
+        #expect(model.isSpotifyRunning)
+
+        harness.spotify.isRunning = false
+        await model.refresh()
+        #expect(!model.isSpotifyRunning)
     }
 
     @Test func secondAccessibilityRequestOpensSettings() {

@@ -42,6 +42,8 @@ nonisolated enum SendResult: Sendable {
 protocol SpotifyControlling: AnyObject {
     /// Whether the Spotify desktop app is on this Mac.
     var isInstalled: Bool { get }
+    /// Whether Spotify is open and has finished launching.
+    var isRunning: Bool { get }
     /// nil when Spotify is not running, so macOS cannot say.
     func automationStatus(askingIfNeeded: Bool) async -> AutomationStatus?
     /// Opens Spotify without bringing it forward and waits until it has finished launching.
@@ -55,7 +57,7 @@ final class SpotifyRemote: SpotifyControlling {
     /// Called when a send fails because Automation was turned off.
     var onDenied: () -> Void = {}
 
-    private let isRunning: () -> Bool
+    private let runningCheck: () -> Bool
     private let launch: () async -> Bool
     private let send: (SpotifyCommand) async -> SendResult
     private let sleep: (Duration) async -> Void
@@ -69,7 +71,7 @@ final class SpotifyRemote: SpotifyControlling {
         send: @escaping (SpotifyCommand) async -> SendResult = SpotifyRemote.sendAppleEvent,
         sleep: @escaping (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
-        self.isRunning = isRunning
+        runningCheck = isRunning
         self.launch = launch
         self.send = send
         self.sleep = sleep
@@ -78,7 +80,7 @@ final class SpotifyRemote: SpotifyControlling {
     /// Returns at once; the returned task finishes when the command has been sent (or given up on).
     @discardableResult
     func handle(_ key: MediaKey) -> Task<Void, Never> {
-        if isRunning() {
+        if isRunning {
             // Chain sends so quick presses reach Spotify in order.
             let previous = lastSend
             let task = Task {
@@ -107,11 +109,11 @@ final class SpotifyRemote: SpotifyControlling {
     }
 
     func launchInBackground() async -> Bool {
-        if isRunning() { return true }
+        if isRunning { return true }
         guard await launch() else { return false }
         for _ in 0..<40 {
             await sleep(.milliseconds(250))
-            if isRunning() { return true }
+            if isRunning { return true }
         }
         Logger.app.error("Spotify did not finish launching in time")
         return false
@@ -120,6 +122,8 @@ final class SpotifyRemote: SpotifyControlling {
     var isInstalled: Bool {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) != nil
     }
+
+    var isRunning: Bool { runningCheck() }
 
     func automationStatus(askingIfNeeded: Bool) async -> AutomationStatus? {
         await Self.determineAutomation(askingIfNeeded: askingIfNeeded)
