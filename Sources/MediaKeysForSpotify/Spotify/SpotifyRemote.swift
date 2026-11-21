@@ -136,8 +136,20 @@ final class SpotifyRemote: SpotifyControlling {
     // MARK: - System side effects
 
     nonisolated static func isSpotifyRunning() -> Bool {
+        runningSpotify() != nil
+    }
+
+    /// The Spotify that has finished launching, if any.
+    nonisolated static func runningSpotify() -> NSRunningApplication? {
         NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            .contains { $0.isFinishedLaunching && !$0.isTerminated }
+            .first { $0.isFinishedLaunching && !$0.isTerminated }
+    }
+
+    /// Apple Events go to Spotify's process, not its bundle ID. macOS can resolve the bundle ID
+    /// to a port Spotify never reads, and then every event times out (-1712) while Spotify works.
+    /// nil when Spotify is not running.
+    nonisolated static func spotifyTarget() -> NSAppleEventDescriptor? {
+        runningSpotify().map { NSAppleEventDescriptor(processIdentifier: $0.processIdentifier) }
     }
 
     nonisolated static func openSpotify() async -> Bool {
@@ -159,10 +171,14 @@ final class SpotifyRemote: SpotifyControlling {
     /// Waits for Spotify's reply (and possibly a consent prompt), so it runs off the main actor.
     @concurrent
     nonisolated static func sendAppleEvent(_ command: SpotifyCommand) async -> SendResult {
+        guard let target = spotifyTarget() else {
+            Logger.app.notice("Spotify is not running; \(String(describing: command), privacy: .public) not sent")
+            return .notReady
+        }
         let event = NSAppleEventDescriptor(
             eventClass: fourCharCode("spfy"),
             eventID: command.eventID,
-            targetDescriptor: NSAppleEventDescriptor(bundleIdentifier: bundleID),
+            targetDescriptor: target,
             returnID: AEReturnID(kAutoGenerateReturnID),
             transactionID: AETransactionID(kAnyTransactionID)
         )
@@ -183,7 +199,7 @@ final class SpotifyRemote: SpotifyControlling {
     /// macOS can only answer while Spotify is running; otherwise this returns nil.
     @concurrent
     nonisolated static func determineAutomation(askingIfNeeded: Bool) async -> AutomationStatus? {
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
+        guard let target = spotifyTarget() else { return nil }
         // `aeDesc` points into `target`, so keep `target` alive until macOS has read it.
         let result = withExtendedLifetime(target) { () -> OSStatus? in
             guard let desc = target.aeDesc else { return nil }
